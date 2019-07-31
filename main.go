@@ -13,12 +13,13 @@ import (
 
 // Message describes a message
 type Message struct {
-	Topic     string
-	QoS       byte
-	Payload   interface{}
-	Sent      time.Time
-	Delivered time.Time
-	Error     bool
+	Topic          string
+	QoS            byte
+	Payload        interface{}
+	Sent           time.Time
+	Delivered      time.Time
+	DeliveredToSub time.Time
+	Error          bool
 }
 
 // RunResults describes results of a single client / run
@@ -65,21 +66,23 @@ func main() {
 		qos      = flag.Int("qos", 1, "QoS for published messages")
 		size     = flag.Int("size", 100, "Size of the messages payload (bytes)")
 		count    = flag.Int("count", 100, "Number of messages to send per client")
-		clients  = flag.Int("clients", 10, "Number of clients to start")
+		pubs     = flag.Int("pubs", 10, "Number of clients to start")
+		subs     = flag.Int("subs", 10, "Number of clients to start")
 		format   = flag.String("format", "text", "Output format: text|json")
 		quiet    = flag.Bool("quiet", false, "Suppress logs while running")
 	)
 
 	flag.Parse()
-	if *clients < 1 {
-		log.Fatal("Invlalid arguments")
+	if *pubs < 1 && *subs < 1 {
+		log.Fatal("Invalid arguments")
 	}
 
 	resCh := make(chan *RunResults)
 	start := time.Now()
-	for i := 0; i < *clients; i++ {
+
+	for i := 0; i < *subs; i++ {
 		if !*quiet {
-			log.Println("Starting client ", i)
+			log.Println("Starting sub client ", i)
 		}
 		c := &Client{
 			ID:         i,
@@ -92,12 +95,30 @@ func main() {
 			MsgQoS:     byte(*qos),
 			Quiet:      *quiet,
 		}
-		go c.Run(resCh)
+		go c.RunSubscriber(resCh)
+	}
+
+	for i := 0; i < *pubs; i++ {
+		if !*quiet {
+			log.Println("Starting pub client ", i)
+		}
+		c := &Client{
+			ID:         i,
+			BrokerURL:  *broker,
+			BrokerUser: *username,
+			BrokerPass: *password,
+			MsgTopic:   *topic,
+			MsgSize:    *size,
+			MsgCount:   *count,
+			MsgQoS:     byte(*qos),
+			Quiet:      *quiet,
+		}
+		go c.RunPublisher(resCh)
 	}
 
 	// collect the results
-	results := make([]*RunResults, *clients)
-	for i := 0; i < *clients; i++ {
+	results := make([]*RunResults, *subs+*pubs)
+	for i := 0; i < *subs+*pubs; i++ {
 		results[i] = <-resCh
 	}
 	totalTime := time.Now().Sub(start)
