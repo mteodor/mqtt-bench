@@ -25,11 +25,11 @@ type Client struct {
 }
 
 // RunPublisher - runs publisher
-func (c *Client) RunPublisher(res chan *RunResults) {
+func (c *Client) RunPublisher(res chan *RunResults, donePub chan bool) {
 	newMsgs := make(chan *Message)
 	pubMsgs := make(chan *Message)
 	doneGen := make(chan bool)
-	donePub := make(chan bool)
+
 	runResults := new(RunResults)
 
 	started := time.Now()
@@ -69,14 +69,14 @@ func (c *Client) RunPublisher(res chan *RunResults) {
 }
 
 // RunSubscriber - runs a subscriber
-func (c *Client) RunSubscriber(res chan *RunResults) {
+func (c *Client) RunSubscriber(res chan *RunResults, donePub chan bool) {
 	doneSub := make(chan bool)
 	runResults := new(RunResults)
 
 	started := time.Now()
 	// start generator
 	// start subscriber
-	go c.subscribe(doneSub)
+	go c.subscribe(doneSub, doneSub)
 
 	runResults.ID = c.ID
 	times := []float64{}
@@ -112,10 +112,14 @@ func (c *Client) genMessages(ch chan *Message, done chan bool) {
 	return
 }
 
-func (c *Client) subscribe(doneSub chan bool) {
+func (c *Client) subscribe(doneSub chan bool, donePub chan bool) {
 	onConnected := func(client mqtt.Client) {
 		if !c.Quiet {
 			log.Printf("CLIENT %v is connected to the broker %v\n", c.ID, c.BrokerURL)
+		}
+		select {
+		case <-donePub:
+			doneSub <- true
 		}
 
 	}

@@ -102,6 +102,7 @@ func main() {
 	json.Unmarshal([]byte(byteValue), &connections)
 
 	resCh := make(chan *RunResults)
+	donePub := make(chan bool)
 	start := time.Now()
 	n := len(connections)
 	for i := 0; i < *subs; i++ {
@@ -122,7 +123,7 @@ func main() {
 			MsgQoS:     byte(*qos),
 			Quiet:      *quiet,
 		}
-		go c.RunSubscriber(resCh)
+		go c.RunSubscriber(resCh, donePub)
 	}
 
 	for i := 0; i < *pubs; i++ {
@@ -141,7 +142,7 @@ func main() {
 			MsgQoS:     byte(*qos),
 			Quiet:      *quiet,
 		}
-		go c.RunPublisher(resCh)
+		go c.RunPublisher(resCh, donePub)
 	}
 
 	// collect the results
