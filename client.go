@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -47,10 +46,10 @@ func (c *Client) RunPublisher(res chan *RunResults) {
 		case m := <-pubMsgs:
 			cid := m.ID
 			if m.Error {
-				log.Printf("CLIENT %v ERROR publishing message: %v: at %v\n", c.ID, m.Topic, m.Sent.Unix())
+				////log.Printf("CLIENT %v ERROR publishing message: %v: at %v\n", c.ID, m.Topic, m.Sent.Unix())
 				runResults.Failures++
 			} else {
-				log.Printf("Message published: %v: sent: %v delivered: %v flight time: %v\n", m.Topic, m.Sent, m.Delivered, m.Delivered.Sub(m.Sent))
+				//log.Printf("Message published: %v: sent: %v delivered: %v flight time: %v\n", m.Topic, m.Sent, m.Delivered, m.Delivered.Sub(m.Sent))
 				runResults.Successes++
 				runResults.ID = cid
 				times = append(times, float64(m.Delivered.Sub(m.Sent).Nanoseconds()/1000)) // in microseconds
@@ -73,12 +72,11 @@ func (c *Client) RunPublisher(res chan *RunResults) {
 }
 
 // RunSubscriber - runs a subscriber
-func (c *Client) RunSubscriber(wg *sync.WaitGroup, subTimes *SubTimes) {
-	defer wg.Done()
+func (c *Client) RunSubscriber(wg *sync.WaitGroup, subTimes *SubTimes, done *chan bool) {
 	// start generator
 	// start subscriber
 
-	c.subscribe(subTimes)
+	c.subscribe(subTimes, done)
 
 }
 
@@ -92,18 +90,18 @@ func (c *Client) genMessages(ch chan *Message, done chan bool) {
 		}
 	}
 	done <- true
-	// log.Printf("CLIENT %v is done generating messages\n", c.ID)
+	// //log.Printf("CLIENT %v is done generating messages\n", c.ID)
 	return
 }
 
-func (c *Client) subscribe(subTimes *SubTimes) {
+func (c *Client) subscribe(subTimes *SubTimes, done *chan bool) {
 
 	clientID := fmt.Sprintf("sub-%v-%v", time.Now().Format(time.RFC3339Nano), c.ID)
 	c.ID = clientID
 
 	onConnected := func(client mqtt.Client) {
 		if !c.Quiet {
-			log.Printf("CLIENT %v is connected to the broker %v\n", clientID, c.BrokerURL)
+			//log.Printf("CLIENT %v is connected to the broker %v\n", clientID, c.BrokerURL)
 		}
 	}
 
@@ -114,7 +112,7 @@ func (c *Client) subscribe(subTimes *SubTimes) {
 		SetAutoReconnect(true).
 		SetOnConnectHandler(onConnected).
 		SetConnectionLostHandler(func(client mqtt.Client, reason error) {
-			log.Printf("CLIENT %v lost connection to the broker: %v. Will reconnect...\n", clientID, reason.Error())
+			//log.Printf("CLIENT %v lost connection to the broker: %v. Will reconnect...\n", clientID, reason.Error())
 		})
 	if c.BrokerUser != "" && c.BrokerPass != "" {
 		opts.SetUsername(c.BrokerUser)
@@ -125,7 +123,7 @@ func (c *Client) subscribe(subTimes *SubTimes) {
 	token.Wait()
 
 	if token.Error() != nil {
-		log.Printf("CLIENT %v had error connecting to the broker: %v\n", clientID, token.Error())
+		//log.Printf("CLIENT %v had error connecting to the broker: %v\n", clientID, token.Error())
 	}
 
 	token = client.Subscribe(c.MsgTopic, 0, func(cl mqtt.Client, msg mqtt.Message) {
@@ -133,9 +131,9 @@ func (c *Client) subscribe(subTimes *SubTimes) {
 		mp := MessagePayload{}
 		err := json.Unmarshal(msg.Payload(), &mp)
 		if err != nil {
-			log.Printf("CLIENT %s failed to decode message", clientID)
+			//log.Printf("CLIENT %s failed to decode message", clientID)
 		}
-		log.Printf("CLIENT %s received message on topic: %v - %s\n", clientID, msg.Topic(), mp.ID)
+		//log.Printf("CLIENT %s received message on topic: %v - %s\n", clientID, msg.Topic(), mp.ID)
 		// if (*subTimes)[mp.ID] == nil {
 		// 	(*subTimes)[mp.ID] = []float64{}
 		// }
@@ -143,7 +141,15 @@ func (c *Client) subscribe(subTimes *SubTimes) {
 	})
 
 	token.Wait()
-	fmt.Println("exit subscribing")
+
+	for {
+		select {
+
+		case <-*done:
+			client.Disconnect(0)
+			return
+		}
+	}
 
 }
 
@@ -153,7 +159,7 @@ func (c *Client) pubMessages(in, out chan *Message, doneGen chan bool, donePub c
 	c.ID = clientID
 	onConnected := func(client mqtt.Client) {
 		if !c.Quiet {
-			log.Printf("CLIENT %v is connected to the broker %v\n", clientID, c.BrokerURL)
+			//log.Printf("CLIENT %v is connected to the broker %v\n", clientID, c.BrokerURL)
 		}
 		ctr := 0
 		for {
@@ -168,7 +174,7 @@ func (c *Client) pubMessages(in, out chan *Message, doneGen chan bool, donePub c
 				token := client.Publish(m.Topic, m.QoS, false, pload)
 				token.Wait()
 				if token.Error() != nil {
-					log.Printf("CLIENT %v Error sending message: %v\n", clientID, token.Error())
+					//log.Printf("CLIENT %v Error sending message: %v\n", clientID, token.Error())
 					m.Error = true
 				} else {
 					m.Delivered = time.Now()
@@ -178,14 +184,14 @@ func (c *Client) pubMessages(in, out chan *Message, doneGen chan bool, donePub c
 
 				if ctr > 0 && ctr%100 == 0 {
 					if !c.Quiet {
-						log.Printf("CLIENT %v published %v messages and keeps publishing...\n", clientID, ctr)
+						//log.Printf("CLIENT %v published %v messages and keeps publishing...\n", clientID, ctr)
 					}
 				}
 				ctr++
 			case <-doneGen:
 				donePub <- true
 				if !c.Quiet {
-					log.Printf("CLIENT %v is done publishing\n", clientID)
+					//log.Printf("CLIENT %v is done publishing\n", clientID)
 				}
 				return
 			}
@@ -200,7 +206,7 @@ func (c *Client) pubMessages(in, out chan *Message, doneGen chan bool, donePub c
 		SetAutoReconnect(true).
 		SetOnConnectHandler(onConnected).
 		SetConnectionLostHandler(func(client mqtt.Client, reason error) {
-			log.Printf("CLIENT %v lost connection to the broker: %v. Will reconnect...\n", clientID, reason.Error())
+			//log.Printf("CLIENT %v lost connection to the broker: %v. Will reconnect...\n", clientID, reason.Error())
 		})
 	if c.BrokerUser != "" && c.BrokerPass != "" {
 		opts.SetUsername(c.BrokerUser)
@@ -211,6 +217,6 @@ func (c *Client) pubMessages(in, out chan *Message, doneGen chan bool, donePub c
 	token.Wait()
 
 	if token.Error() != nil {
-		log.Printf("CLIENT %v had error connecting to the broker: %v\n", c.ID, token.Error())
+		//log.Printf("CLIENT %v had error connecting to the broker: %v\n", c.ID, token.Error())
 	}
 }

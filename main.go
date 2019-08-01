@@ -90,9 +90,9 @@ func main() {
 		broker = flag.String("broker", "tcp://localhost:1883", "MQTT broker endpoint as scheme://host:port")
 		qos    = flag.Int("qos", 1, "QoS for published messages")
 		size   = flag.Int("size", 100, "Size of the messages payload (bytes)")
-		count  = flag.Int("count", 10, "Number of messages to send per client")
-		pubs   = flag.Int("pubs", 10, "Number of clients to start")
-		subs   = flag.Int("subs", 10, "Number of clients to start")
+		count  = flag.Int("count", 100, "Number of messages to send per client")
+		pubs   = flag.Int("pubs", 20, "Number of clients to start")
+		subs   = flag.Int("subs", 1, "Number of clients to start")
 		format = flag.String("format", "text", "Output format: text|json")
 		quiet  = flag.Bool("quiet", false, "Suppress logs while running")
 	)
@@ -110,7 +110,7 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println("Successfully Opened users.json")
+	fmt.Println("Successfully Opened connections.json")
 	// defer the closing of our jsonFile so that we can parse it later on
 	defer jsonFile.Close()
 
@@ -120,15 +120,16 @@ func main() {
 	json.Unmarshal([]byte(byteValue), &connections)
 
 	resCh := make(chan *RunResults)
+	done := make(chan bool)
 
 	start := time.Now()
 	n := len(connections)
 	for i := 0; i < *subs; i++ {
 		if !*quiet {
-			log.Println("Starting sub client ", i)
+			//log.Println("Starting sub client ", i)
 		}
 
-		con := connections[i/n]
+		con := connections[i%n]
 
 		c := &Client{
 			ID:         strconv.Itoa(i),
@@ -141,16 +142,14 @@ func main() {
 			MsgQoS:     byte(*qos),
 			Quiet:      *quiet,
 		}
-		wg.Add(1)
-		go c.RunSubscriber(&wg, &subTimes)
+		go c.RunSubscriber(&wg, &subTimes, &done)
 	}
 
-	wg.Wait()
 	for i := 0; i < *pubs; i++ {
 		if !*quiet {
 			log.Println("Starting pub client ", i)
 		}
-		con := connections[i/n]
+		con := connections[i%n]
 		c := &Client{
 			ID:         strconv.Itoa(i),
 			BrokerURL:  *broker,
@@ -167,18 +166,29 @@ func main() {
 
 	// collect the results
 	fmt.Printf("collecting results")
-	results := make([]*RunResults, *pubs)
+	var results []*RunResults
+	if *pubs > 0 {
+		results = make([]*RunResults, *pubs)
+	}
+
 	for i := 0; i < *pubs; i++ {
 		results[i] = <-resCh
 	}
+	done <- true
+
 	fmt.Println("processing results")
 	totalTime := time.Now().Sub(start)
 	totals := calculateTotalResults(results, totalTime, &subTimes)
-
+	if totals == nil {
+		return
+	}
 	// print stats
 	printResults(results, totals, *format)
 }
 func calculateTotalResults(results []*RunResults, totalTime time.Duration, subTimes *SubTimes) *TotalResults {
+	if results == nil || len(results) < 1 {
+		return nil
+	}
 	totals := new(TotalResults)
 	totals.TotalRunTime = totalTime.Seconds()
 	var subTimeRunResults RunResults
