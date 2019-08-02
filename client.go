@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -76,7 +77,7 @@ func (c *Client) RunSubscriber(wg *sync.WaitGroup, subTimes *SubTimes, done *cha
 	// start generator
 	// start subscriber
 
-	c.subscribe(subTimes, done)
+	c.subscribe(wg, subTimes, done)
 
 }
 
@@ -94,14 +95,15 @@ func (c *Client) genMessages(ch chan *Message, done chan bool) {
 	return
 }
 
-func (c *Client) subscribe(subTimes *SubTimes, done *chan bool) {
-
+func (c *Client) subscribe(wg *sync.WaitGroup, subTimes *SubTimes, done *chan bool) {
+	defer wg.Done()
+	defer fmt.Println("exiting subscribe")
 	clientID := fmt.Sprintf("sub-%v-%v", time.Now().Format(time.RFC3339Nano), c.ID)
 	c.ID = clientID
 
 	onConnected := func(client mqtt.Client) {
 		if !c.Quiet {
-			//log.Printf("CLIENT %v is connected to the broker %v\n", clientID, c.BrokerURL)
+			log.Printf("CLIENT %v is connected to the broker %v\n", clientID, c.BrokerURL)
 		}
 	}
 
@@ -141,15 +143,6 @@ func (c *Client) subscribe(subTimes *SubTimes, done *chan bool) {
 	})
 
 	token.Wait()
-
-	for {
-		select {
-
-		case <-*done:
-			client.Disconnect(0)
-			return
-		}
-	}
 
 }
 
