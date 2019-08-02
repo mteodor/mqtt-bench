@@ -21,6 +21,7 @@ Usage of mqtt-benchmark:
 ```
 
 Two output formats supported: human-readable plain text and JSON.
+
 Before use you need a connections.json file with channels and credentials
 ```
 
