@@ -91,8 +91,9 @@ func main() {
 		qos    = flag.Int("qos", 1, "QoS for published messages")
 		size   = flag.Int("size", 100, "Size of the messages payload (bytes)")
 		count  = flag.Int("count", 100, "Number of messages to send per client")
-		pubs   = flag.Int("pubs", 20, "Number of clients to start")
-		subs   = flag.Int("subs", 3, "Number of clients to start")
+		pubs   = flag.Int("pubs", 10, "Number of clients to start")
+		subs   = flag.Int("subs", 10, "Number of clients to start")
+		config = flag.String("config", "connections.json", "File for mainflux channels")
 		format = flag.String("format", "text", "Output format: text|json")
 		quiet  = flag.Bool("quiet", false, "Suppress logs while running")
 	)
@@ -105,12 +106,12 @@ func main() {
 	}
 
 	// Open connections jsonFile
-	jsonFile, err := os.Open("connections.json")
+	jsonFile, err := os.Open(*config)
 	// if we os.Open returns an error then handle it
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
-	fmt.Println("Successfully Opened connections.json")
+	fmt.Println("Successfully opened channel conf file")
 	// defer the closing of our jsonFile so that we can parse it later on
 	defer jsonFile.Close()
 
