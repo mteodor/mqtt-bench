@@ -92,7 +92,7 @@ func main() {
 		size   = flag.Int("size", 100, "Size of the messages payload (bytes)")
 		count  = flag.Int("count", 100, "Number of messages to send per client")
 		pubs   = flag.Int("pubs", 20, "Number of clients to start")
-		subs   = flag.Int("subs", 1, "Number of clients to start")
+		subs   = flag.Int("subs", 3, "Number of clients to start")
 		format = flag.String("format", "text", "Output format: text|json")
 		quiet  = flag.Bool("quiet", false, "Suppress logs while running")
 	)
@@ -142,8 +142,10 @@ func main() {
 			MsgQoS:     byte(*qos),
 			Quiet:      *quiet,
 		}
+		wg.Add(1)
 		go c.RunSubscriber(&wg, &subTimes, &done)
 	}
+	wg.Wait()
 
 	for i := 0; i < *pubs; i++ {
 		if !*quiet {
@@ -174,7 +176,6 @@ func main() {
 	for i := 0; i < *pubs; i++ {
 		results[i] = <-resCh
 	}
-	done <- true
 
 	fmt.Println("processing results")
 	totalTime := time.Now().Sub(start)
