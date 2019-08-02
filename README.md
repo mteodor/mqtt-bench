@@ -1,16 +1,9 @@
 MQTT benchmarking tool
 =========
-A simple MQTT (broker) benchmarking tool.
+A simple MQTT (broker) benchmarking tool for Mainflux platform. ( based on github.com/krylovsk/mqtt-benchmark )
 
-Installation:
 
-```
-go get github.com/krylovsk/mqtt-benchmark
-```
-
-All dependencies are vendored with [manul](https://github.com/kovetskiy/manul).
-
-The tool supports multiple concurrent clients, configurable message size, etc:
+The tool supports multiple concurrent clients, publishers and subscribers configurable message size, etc:
 ```
 > mqtt-benchmark --help
 Usage of mqtt-benchmark:
@@ -21,17 +14,33 @@ Usage of mqtt-benchmark:
   -password="": MQTT password (empty if auth disabled)
   -qos=1: QoS for published messages
   -quiet=false : Suppress logs while running (except errors and the result)
-  -size=100: Size of the messages payload (bytes)
-  -topic="/test": MQTT topic for incoming message
-  -username="": MQTT username (empty if auth disabled)
+  -size=100: Size of the messages payload (bytes
+  -subs=10 number of subscribers 
+  -pubs=10 number of publishers
+  -config=connections.json , file with mainflux channels
 ```
 
 Two output formats supported: human-readable plain text and JSON.
+Before use you need a connections.json file with channels and credentials
+```
 
+[
+  {
+    "ChannelID": "d07a94dd-1e5c-4ead-b1d7-0f178afb471b",
+    "ThingID": "652d6cb0-ed3c-4e6f-8512-312f614f3a27",
+    "ThingKey": "efc32e8b-2641-4342-b5f6-f7ff77b67097"
+  },
+  ....
+]
+```
 Example use and output:
 
 ```
-> mqtt-benchmark --broker tcp://broker.local:1883 --count 100 --size 100 --clients 100 --qos 2 --format text
+go build -o mqtt-benchmark *.go
+
+
+./mqtt-benchmark --broker tcp://localhost:1883 --count 100 --size 100  --qos 0 --format text   --subs 100 --pubs 0 --config connections.json
+
 ....
 
 ======= CLIENT 27 =======
